@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Avalon: The Resistance - Web App
 
-## Getting Started
+このプロジェクトは、正体隠匿系ボードゲーム「アヴァロン（Avalon: The Resistance）」をブラウザ上で遊べるようにしたWebアプリケーションです。
 
-First, run the development server:
+## 🌐 遊び方・デプロイ方法
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. [Vercel](https://vercel.com/) にホスティングすることで世界中からアクセス可能です。
+2. プレイヤーは名前を入力して「ルーム作成」または「ルーム参加」を行います。
+3. 最低5人（最大10人）集まるとホストがゲームを開始できます。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📜 アヴァロンのルール説明
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 概要
+プレイヤーは「アーサー卿の忠臣（正義）」と「モードレッドの配下（邪悪）」の2つの陣営に分かれます。
+正義陣営は**3回の遠征（ミッション）を成功させること**が目的で、邪悪陣営は**3回のミッションを失敗させること**が目的です。
 
-## Learn More
+### 役職について
+- **正義陣営（青色）**: 誰が味方か全くわかりません（マーリンやパーシヴァルを除く）。
+  - **マーリン**: 邪悪陣営のプレイヤーが誰かを知っています（モルドレッド以外）。ただし、自分がマーリンであることを悟られてはいけません。
+  - **パーシヴァル**: マーリンが誰かを知りませんが、「本物のマーリン」と「偽物（モルガナ）」の2人が見えます。どちらが本物かを見極め、彼を守るのが仕事です。
+  - **忠実なる家来**: 能力を持たない一般の正義陣営です。
 
-To learn more about Next.js, take a look at the following resources:
+- **邪悪陣営（赤色）**: お互いに誰が邪悪陣営かを知っています（オベロンを除く）。
+  - **アサシン**: ゲームの最後に、正義陣営が3勝した場合でも「マーリン」を言い当てて暗殺できれば、逆転勝利となります。
+  - **モルガナ**: パーシヴァルに対して「自分がマーリンである」と偽装して見えます。
+  - **モルドレッド**: マーリンから正体が見えません（マーリンには彼が正義阵営に見えます）。
+  - **オベロン**: 仲間の邪悪陣営が誰か分からず、他の邪悪陣営からもオベロンが味方だと分かりません。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### ゲームの流れ
+ゲームは最大5ラウンド行われ、以下のフェーズを繰り返します。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **遠征隊の編成（Proposing Phase）**
+   - リーダーが、現在のラウンドに必要な人数分の「遠征メンバー」を指名します。
+   - リーダーはラウンドごとに時計回りに交代します。
 
-## Deploy on Vercel
+2. **投票（Voting Phase）**
+   - リーダーが指名したメンバーで遠征に行くかどうかを、全員で「承認（Approve）」か「反対（Reject）」で多数決投票します。
+   - 過半数の「承認」が得られれば遠征が実行されます。
+   - 同数または「反対」が多い場合は、否決となり次の人にリーダーが移ります。（**※5回連続で否決されると、その時点で邪悪陣営の勝利となります**）
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+3. **遠征（Mission Phase）**
+   - 遠征に選ばれたメンバーは、秘密裏に「成功（Success）」か「失敗（Fail）」のカードを出します。
+   - **正義陣営は必ず「成功」を出さなければなりません。**
+   - **邪悪陣営は「成功」と「失敗」のどちらを出しても構いません。**
+   - 出されたカードの中に**1枚でも「失敗」があれば、その遠征は失敗（邪悪の得点）**となります。
+   - （※ただし、7人以上でプレイする場合の第4ラウンドのみ、「失敗」が2枚以上必要となります）
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4. **暗殺フェーズ（Assassination Phase）**
+   - 正義陣営が遠征を3回成功させた場合、最後にアサシンが「誰がマーリンだったか」を話し合って1人指名します。
+   - 見事マーリンを暗殺できれば **邪悪陣営の逆転勝利**。外れれば **正義陣営の完全勝利** となります。
