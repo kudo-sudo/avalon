@@ -30,8 +30,8 @@ export interface Room {
   teamSize: number;
   proposedTeam?: string[]; // プレイヤーIDの配列
   votes?: Record<string, 'approve' | 'reject'>; // UID -> 投票内容
-  missionVotes?: ('success' | 'fail')[];
-  phase: 'proposing' | 'voting' | 'mission' | 'result';
+  missionVotes?: Record<string, 'success' | 'fail'>; // UID -> 成功/失敗
+  phase: 'proposing' | 'voting' | 'voting_result' | 'mission' | 'mission_result';
   winner?: 'Good' | 'Evil';
   assassinTarget?: string; //  assassinが選んだマーリンのPlayerID
 }
@@ -209,96 +209,122 @@ export const voteOnTeam = async (roomId: string, uid: string, vote: 'approve' | 
 
   // 全員投票したかチェック
   if (Object.keys(newVotes).length === room.players.length) {
-    const approves = Object.values(newVotes).filter(v => v === 'approve').length;
-    
-    if (approves > room.players.length / 2) {
-      // 承認時 -> ミッションフェーズへ
-      await updateDoc(roomRef, {
-        votes: newVotes,
-        phase: 'mission',
-        missionVotes: [],
-        failedVotes: 0
-      });
-    } else {
-      // 否決時 -> 次のリーダーへ
-      const nextLeaderIndex = (room.currentLeaderIndex + 1) % room.players.length;
-      const newFailedVotes = room.failedVotes + 1;
-      
-      if (newFailedVotes >= 5) {
-        // 5回否決で邪悪の勝利
-        await updateDoc(roomRef, {
-          votes: newVotes,
-          status: 'ended',
-          winner: 'Evil'
-        });
-      } else {
-        await updateDoc(roomRef, {
-          votes: newVotes,
-          phase: 'proposing',
-          currentLeaderIndex: nextLeaderIndex,
-          failedVotes: newFailedVotes,
-          proposedTeam: []
-        });
-      }
-    }
+    await updateDoc(roomRef, {
+      votes: newVotes,
+      phase: 'voting_result'
+    });
   } else {
     await updateDoc(roomRef, { votes: newVotes });
   }
 };
 
-// ミッションの実行（成功・失敗カード）
-export const submitMissionVote = async (roomId: string, vote: 'success' | 'fail') => {
+// 投票結果から次へ進む
+export const proceedFromVoting = async (roomId: string) => {
   const roomRef = doc(db, "rooms", roomId);
   const roomSnap = await getDoc(roomRef);
   if (!roomSnap.exists()) return;
 
   const room = roomSnap.data() as Room;
-  const newMissionVotes = [...(room.missionVotes || []), vote];
-
-  // 選ばれたメンバー全員出したかチェック
-  if (newMissionVotes.length === (room.proposedTeam?.length || 0)) {
-    // 失敗カードの必要数（通常1枚、7人以上の第4ミッションのみ2枚）
-    const failThreshold = (room.players.length >= 7 && room.currentRound === 4) ? 2 : 1;
-    const fails = newMissionVotes.filter(v => v === 'fail').length;
-    const isSuccess = fails < failThreshold;
-
-    const newMissionResults = [...room.missionResults, isSuccess ? 'success' : 'fail'];
+  const approves = Object.values(room.votes || {}).filter(v => v === 'approve').length;
+  
+  if (approves > room.players.length / 2) {
+    // 承認時 -> ミッションフェーズへ
+    await updateDoc(roomRef, {
+      phase: 'mission',
+      missionVotes: {},
+      failedVotes: 0
+    });
+  } else {
+    // 否決時 -> 次のリーダーへ
+    const nextLeaderIndex = (room.currentLeaderIndex + 1) % room.players.length;
+    const newFailedVotes = room.failedVotes + 1;
     
-    // 勝利判定
-    const successCount = newMissionResults.filter(r => r === 'success').length;
-    const failCount = newMissionResults.filter(r => r === 'fail').length;
-
-    if (successCount >= 3) {
-      // 正義の勝利（暗殺フェーズへ）
+    if (newFailedVotes >= 5) {
       await updateDoc(roomRef, {
-        missionVotes: newMissionVotes,
-        missionResults: newMissionResults,
-        status: 'assassination'
-      });
-    } else if (failCount >= 3) {
-       // 邪悪の勝利
-       await updateDoc(roomRef, {
-        missionVotes: newMissionVotes,
-        missionResults: newMissionResults,
         status: 'ended',
         winner: 'Evil'
       });
     } else {
-      // 次のラウンドへ
-      const nextLeaderIndex = (room.currentLeaderIndex + 1) % room.players.length;
-      const nextRound = room.currentRound + 1;
       await updateDoc(roomRef, {
-        missionVotes: newMissionVotes,
-        missionResults: newMissionResults,
-        currentRound: nextRound,
-        currentLeaderIndex: nextLeaderIndex,
         phase: 'proposing',
+        currentLeaderIndex: nextLeaderIndex,
+        failedVotes: newFailedVotes,
         proposedTeam: [],
-        teamSize: getTeamSize(room.players.length, nextRound)
+        votes: {}
       });
     }
+  }
+};
+
+// ミッションの実行（成功・失敗カード）
+export const submitMissionVote = async (roomId: string, uid: string, vote: 'success' | 'fail') => {
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return;
+
+  const room = roomSnap.data() as Room;
+
+  // 既に投票済みなら何もしない
+  if (room.missionVotes && room.missionVotes[uid]) return;
+
+  const newMissionVotes = { ...room.missionVotes, [uid]: vote };
+
+  // 選ばれたメンバー全員出したかチェック
+  if (Object.keys(newMissionVotes).length === (room.proposedTeam?.length || 0)) {
+    // 結果を見るフェーズに移行
+    await updateDoc(roomRef, {
+      missionVotes: newMissionVotes,
+      phase: 'mission_result'
+    });
   } else {
     await updateDoc(roomRef, { missionVotes: newMissionVotes });
+  }
+};
+
+// ミッション結果から次へ進む
+export const proceedFromMission = async (roomId: string) => {
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return;
+
+  const room = roomSnap.data() as Room;
+  const failThreshold = (room.players.length >= 7 && room.currentRound === 4) ? 2 : 1;
+  const fails = Object.values(room.missionVotes || {}).filter(v => v === 'fail').length;
+  const isSuccess = fails < failThreshold;
+
+  const newMissionResults = [...room.missionResults, isSuccess ? 'success' : 'fail'];
+  
+  // 勝利判定
+  const successCount = newMissionResults.filter(r => r === 'success').length;
+  const failCount = newMissionResults.filter(r => r === 'fail').length;
+
+  if (successCount >= 3) {
+    // 正義の勝利（暗殺フェーズへ）
+    await updateDoc(roomRef, {
+      missionResults: newMissionResults,
+      status: 'assassination'
+    });
+  } else if (failCount >= 3) {
+     // 邪悪の勝利
+     await updateDoc(roomRef, {
+      missionResults: newMissionResults,
+      status: 'ended',
+      winner: 'Evil'
+    });
+  } else {
+    // 次のラウンドへ
+    const nextLeaderIndex = (room.currentLeaderIndex + 1) % room.players.length;
+    const nextRound = room.currentRound + 1;
+    await updateDoc(roomRef, {
+      missionVotes: {}, // reset here too to be safe
+      missionResults: newMissionResults,
+      currentRound: nextRound,
+      currentLeaderIndex: nextLeaderIndex,
+      phase: 'proposing',
+      proposedTeam: [],
+      votes: {},
+      teamSize: getTeamSize(room.players.length, nextRound)
+    });
   }
 };
 

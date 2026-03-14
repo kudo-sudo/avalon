@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Shield, Sword, Users, Crown, ShieldAlert, ArrowLeft, Play } from "lucide-react";
-import { subscribeRoom, Room, Player, getPlayerId, startGame, getSecretInfo, proposeTeam, voteOnTeam, submitMissionVote, assassinateMerlin, ROLES } from "@/lib/gameLogic";
+import { Shield, Sword, Users, Crown, ShieldAlert, ArrowLeft, Play, BookOpen, X, Check, XCircle } from "lucide-react";
+import { subscribeRoom, Room, Player, getPlayerId, startGame, getSecretInfo, proposeTeam, voteOnTeam, submitMissionVote, assassinateMerlin, ROLES, proceedFromVoting, proceedFromMission } from "@/lib/gameLogic";
 
 export default function RoomPage() {
   const { id } = useParams();
@@ -146,6 +146,9 @@ export default function RoomPage() {
     const leaderName = room.players[room.currentLeaderIndex].name;
     const isSelected = room.proposedTeam?.includes(myId || "");
 
+    const isTwoFailsRequired = room.players.length >= 7 && room.currentRound === 4;
+    const failsRequiredText = isTwoFailsRequired ? "このミッションは失敗カードが【2枚以上】で失敗となります" : "失敗カードが【1枚】でも出るとミッション失敗となります";
+
     return (
       <div className="flex min-h-screen flex-col bg-background p-4 sm:p-8">
         {/* Header: Mission Status */}
@@ -169,7 +172,7 @@ export default function RoomPage() {
                 <div key={round} className={`avalon-card p-3 flex flex-col items-center justify-center gap-2 border-2 ${
                   round === room.currentRound ? 'border-primary shadow-[0_0_10px_var(--primary)]' : 'border-white/5'
                 }`}>
-                  <span className="text-[10px] font-bold opacity-40">M{round}</span>
+                  <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest text-center leading-none">MISSION<br/>{round}</span>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                     result === 'success' ? 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]' :
                     result === 'fail' ? 'bg-accent shadow-[0_0_15px_rgba(220,38,38,0.5)]' :
@@ -224,6 +227,15 @@ export default function RoomPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Role Distribution Info */}
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <p className="text-[10px] uppercase font-bold text-foreground/40 mb-2">Role Distribution</p>
+                <div className="flex justify-between text-xs">
+                  <span className="text-blue-400 font-bold">Good: {room.players.length === 5 ? 3 : room.players.length === 6 ? 4 : room.players.length === 7 ? 4 : room.players.length === 8 ? 5 : room.players.length === 9 ? 6 : 6}</span>
+                  <span className="text-accent font-bold">Evil: {room.players.length === 5 ? 2 : room.players.length === 6 ? 2 : room.players.length === 7 ? 3 : room.players.length === 8 ? 3 : room.players.length === 9 ? 3 : 4}</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -237,11 +249,20 @@ export default function RoomPage() {
                   <h3 className="text-2xl font-bold mb-2">
                     {isLeader ? "Team Selection" : "Waiting for Leader"}
                   </h3>
-                  <p className="text-sm text-foreground/60 mb-8">
-                    {isLeader 
-                      ? `${room.teamSize}人のメンバーを選んで遠征隊を編成してください。` 
-                      : `${leaderName}（リーダー）がメンバーを選んでいます。`}
-                  </p>
+                  <div className="mb-8">
+                    {isLeader ? (
+                       <p className="text-sm text-foreground/60">
+                         <strong className="text-primary text-lg">【 定員：{room.teamSize}人 】</strong><br/>
+                         今回のミッションに行くメンバーを選んでください。
+                       </p>
+                    ) : (
+                       <p className="text-sm text-foreground/60">
+                         リーダー（<strong className="text-primary">{leaderName}</strong>）がメンバーを選んでいます。<br/>
+                         今回の定員は <strong className="text-primary">{room.teamSize}人</strong> です。
+                       </p>
+                    )}
+                    <span className="text-accent text-xs font-bold mt-3 inline-block bg-accent/10 px-3 py-1 rounded-full">※{failsRequiredText}</span>
+                  </div>
 
                   {isLeader && (
                     <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
@@ -295,11 +316,19 @@ export default function RoomPage() {
                   </div>
                   <h3 className="text-2xl font-bold mb-2">Team Approval</h3>
                   <p className="text-sm text-foreground/60 mb-8">
-                    このメンバーで遠征に行きますか？
+                    この {room.teamSize}人のメンバーで遠征に行きますか？
+                    <br />
+                    <span className="text-accent text-xs font-bold mt-2 inline-block">※{failsRequiredText}</span>
                   </p>
 
                   {room.votes?.[myId || ""] ? (
-                    <div className="text-primary font-bold animate-pulse">投票済み。結果を待っています...</div>
+                    <div className="text-center p-6 border border-white/10 rounded-xl bg-white/5">
+                      <p className="text-sm font-bold opacity-60 mb-2">あなたの投票</p>
+                      <div className={`text-2xl font-black uppercase ${room.votes[myId || ""] === 'approve' ? 'text-blue-500' : 'text-accent'} mb-4`}>
+                        {room.votes[myId || ""] === 'approve' ? 'APPROVE (賛成)' : 'REJECT (反対)'}
+                      </div>
+                      <div className="text-xs text-primary font-bold animate-pulse">全員の投票を待っています...</div>
+                    </div>
                   ) : (
                     <div className="flex gap-4 w-full max-w-sm">
                       <button 
@@ -319,34 +348,92 @@ export default function RoomPage() {
                 </div>
               )}
 
-              {/* Mission Phase */}
+              {/* Voting Result Phase */}
+              {room.phase === 'voting_result' && (() => {
+                const approves = Object.values(room.votes || {}).filter(v => v === 'approve').length;
+                const rejects = Object.values(room.votes || {}).filter(v => v === 'reject').length;
+                const isApproved = approves > room.players.length / 2;
+
+                return (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+                    <h3 className="text-sm font-bold opacity-50 uppercase tracking-widest mb-2">Vote Result</h3>
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="text-center">
+                        <span className="text-4xl font-black text-blue-500">{approves}</span>
+                        <p className="text-xs uppercase font-bold text-blue-500/50">Approve</p>
+                      </div>
+                      <div className="text-2xl font-black opacity-20">VS</div>
+                      <div className="text-center">
+                        <span className="text-4xl font-black text-accent">{rejects}</span>
+                        <p className="text-xs uppercase font-bold text-accent/50">Reject</p>
+                      </div>
+                    </div>
+
+                    <div className={`text-4xl font-black uppercase italic tracking-tighter mb-8 ${isApproved ? 'text-blue-500 animate-bounce' : 'text-accent animate-pulse'}`}>
+                      {isApproved ? "Approved!" : "Rejected!"}
+                    </div>
+
+                    <div className="w-full max-w-sm grid grid-cols-2 gap-2 mb-8 text-sm">
+                      {room.players.map(p => {
+                        const v = room.votes?.[p.id];
+                        return (
+                          <div key={p.id} className={`flex items-center justify-between p-2 rounded border ${v === 'approve' ? 'bg-blue-900/20 border-blue-500/30 text-blue-100' : 'bg-red-900/20 border-red-500/30 text-red-100'}`}>
+                            <span className="truncate pr-2">{p.name}</span>
+                            {v === 'approve' ? <Check className="w-4 h-4 text-blue-500 flex-shrink-0" /> : <XCircle className="w-4 h-4 text-accent flex-shrink-0" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {isLeader && (
+                      <button 
+                        className="avalon-btn w-full max-w-sm shadow-[0_0_20px_rgba(212,175,55,0.3)] animate-pulse"
+                        onClick={() => proceedFromVoting(room.id)}
+                      >
+                        次へ進む
+                      </button>
+                    )}
+                    {!isLeader && (
+                      <p className="text-xs opacity-50 animate-pulse">リーダーが確認中です...</p>
+                    )}
+                  </div>
+                );
+              })()}
               {room.phase === 'mission' && (
                 <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
                   <h3 className="text-3xl font-black italic text-primary mb-2">THE MISSION</h3>
                   <p className="text-sm text-foreground/60 mb-8">
-                    遠征メンバー：{room.proposedTeam?.map(pid => room.players.find(p => p.id === pid)?.name).join(", ")}
+                    【 {room.teamSize}人遠征 】 メンバー：{room.proposedTeam?.map(pid => room.players.find(p => p.id === pid)?.name).join(", ")}
+                    <br />
+                    <span className="text-accent text-xs font-bold mt-2 inline-block">※{failsRequiredText}</span>
                   </p>
 
                   {isSelected ? (
-                    room.missionVotes?.length === undefined || room.missionVotes.length < (room.proposedTeam?.length || 0) ? (
+                    room.missionVotes?.[myId || ""] ? (
+                      <div className="text-center p-6 border border-white/10 rounded-xl bg-white/5 w-full max-w-sm">
+                        <p className="text-sm font-bold opacity-60 mb-2">あなたの選択</p>
+                        <div className={`text-2xl font-black uppercase ${room.missionVotes[myId || ""] === 'success' ? 'text-blue-500' : 'text-accent'} mb-4`}>
+                           {room.missionVotes[myId || ""] === 'success' ? 'SUCCESS (成功)' : 'FAIL (失敗)'}
+                        </div>
+                        <div className="text-xs text-primary font-bold animate-pulse">他のメンバーの決断を待っています...</div>
+                      </div>
+                    ) : (
                       <div className="space-y-4 w-full max-w-sm">
                         <p className="text-xs uppercase font-bold tracking-widest text-accent mb-4">秘密の選択（慎重に！）</p>
                         <button 
                           className="w-full py-6 bg-blue-600/20 border-2 border-blue-600 text-blue-400 font-black text-xl rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)]"
-                          onClick={() => submitMissionVote(room.id, 'success')}
+                          onClick={() => submitMissionVote(room.id, myId!, 'success')}
                         >
                           SUCCESS (成功)
                         </button>
                         <button 
                           className="w-full py-6 bg-accent/20 border-2 border-accent text-accent font-black text-xl rounded-2xl hover:bg-accent hover:text-white transition-all shadow-[0_0_20px_rgba(220,38,38,0.2)]"
-                          onClick={() => submitMissionVote(room.id, 'fail')}
+                          onClick={() => submitMissionVote(room.id, myId!, 'fail')}
                         >
                           FAIL (失敗)
                         </button>
                         <p className="text-[10px] text-foreground/40 mt-4">正義陣営は「成功」しか出せません。邪悪陣営はあえて「成功」を出して信用を稼いでも構いません。</p>
                       </div>
-                    ) : (
-                      <div className="text-primary font-bold">全員の決断を待っています...</div>
                     )
                   ) : (
                     <div className="py-12 flex flex-col items-center opacity-40">
@@ -357,6 +444,47 @@ export default function RoomPage() {
                   )}
                 </div>
               )}
+              {/* Mission Result Phase */}
+              {room.phase === 'mission_result' && (() => {
+                const fails = Object.values(room.missionVotes || {}).filter(v => v === 'fail').length;
+                const failThreshold = (room.players.length >= 7 && room.currentRound === 4) ? 2 : 1;
+                const isSuccess = fails < failThreshold;
+
+                return (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
+                    <h3 className="text-sm font-bold opacity-50 uppercase tracking-widest mb-2">Mission Result</h3>
+                    
+                    <div className="flex flex-wrap justify-center gap-4 mb-8">
+                      {Object.values(room.missionVotes || {}).sort((a, b) => b.localeCompare(a)).map((v, i) => (
+                        <div key={i} className={`w-20 h-28 rounded-xl border flex items-center justify-center shadow-lg transform transition-all ${v === 'success' ? 'bg-blue-600/20 border-blue-500 text-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 'bg-red-600/20 border-red-500 text-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]'}`}>
+                          {v === 'success' ? <Shield className="w-8 h-8" /> : <Sword className="w-8 h-8" />}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mb-8">
+                      <h4 className={`text-5xl font-black uppercase italic tracking-tighter ${isSuccess ? 'text-blue-500 animate-bounce' : 'text-accent animate-pulse'}`}>
+                        {isSuccess ? "Success!" : "Failed!"}
+                      </h4>
+                      <p className="text-foreground/60 text-sm mt-2 font-bold">
+                        {fails > 0 ? `失敗カードが ${fails} 枚出ました` : '全て成功カードでした'}
+                      </p>
+                    </div>
+
+                    {isLeader && (
+                      <button 
+                        className="avalon-btn w-full max-w-sm shadow-[0_0_20px_rgba(212,175,55,0.3)] animate-pulse"
+                        onClick={() => proceedFromMission(room.id)}
+                      >
+                        次のラウンドへ
+                      </button>
+                    )}
+                    {!isLeader && (
+                      <p className="text-xs opacity-50 animate-pulse">リーダーが確認中です...</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <button 
@@ -410,7 +538,7 @@ export default function RoomPage() {
             
             {isHost && (
               <button 
-                className="avalon-btn w-full mt-6 flex items-center justify-center gap-2"
+                className="avalon-btn w-full mt-6 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(212,175,55,0.3)] animate-pulse"
                 onClick={handleStartGame}
                 disabled={room.players.length < 5 || starting}
               >
@@ -418,14 +546,34 @@ export default function RoomPage() {
               </button>
             )}
             {!isHost && (
-              <p className="text-xs text-center mt-6 text-foreground/40 animate-pulse">
-                ホストの開始を待っています...
-              </p>
+              <div className="mt-6 p-3 bg-white/5 border border-white/10 text-center rounded-lg">
+                <p className="text-xs text-foreground/60 flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  ホストの開始を待っています...
+                </p>
+              </div>
             )}
             {room.players.length < 5 && (
-              <p className="text-[10px] text-center mt-2 text-accent italic">
-                ※最低5人のプレイヤーが必要です
+              <p className="text-[10px] text-center mt-2 text-accent italic font-bold">
+                ※ゲーム開始には最低5人のプレイヤーが必要です (現在 {room.players.length}人)
               </p>
+            )}
+
+            {/* ロビー時 役職情報 */}
+            {room.players.length >= 5 && (
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <p className="text-xs uppercase font-bold text-foreground/40 mb-3 text-center tracking-widest">現在の役職内訳</p>
+                <div className="grid grid-cols-2 gap-2 text-center text-sm">
+                  <div className="p-2 rounded bg-blue-900/20 border border-blue-500/30">
+                     <span className="block font-black text-blue-500 text-lg">{room.players.length === 5 ? 3 : room.players.length === 6 ? 4 : room.players.length === 7 ? 4 : room.players.length === 8 ? 5 : room.players.length === 9 ? 6 : 6}</span>
+                     <span className="text-[10px] text-blue-400 font-bold uppercase">Good</span>
+                  </div>
+                  <div className="p-2 rounded bg-red-900/20 border border-red-500/30">
+                     <span className="block font-black text-accent text-lg">{room.players.length === 5 ? 2 : room.players.length === 6 ? 2 : room.players.length === 7 ? 3 : room.players.length === 8 ? 3 : room.players.length === 9 ? 3 : 4}</span>
+                     <span className="text-[10px] text-accent font-bold uppercase">Evil</span>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
