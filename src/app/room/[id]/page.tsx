@@ -364,7 +364,14 @@ export default function RoomPage() {
                       <div className={`text-2xl font-black uppercase ${room.votes[myId || ""] === 'approve' ? 'text-blue-500' : 'text-accent'} mb-4`}>
                         {room.votes[myId || ""] === 'approve' ? 'APPROVE (賛成)' : 'REJECT (反対)'}
                       </div>
-                      <div className="text-xs text-primary font-bold animate-pulse">全員の投票を待っています...</div>
+                      <div className="text-xs text-primary font-bold mt-4 mb-2">投票待ちのプレイヤー:</div>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {room.players.filter(p => !room.votes?.[p.id]).map(p => (
+                          <span key={p.id} className="text-[10px] px-2 py-1 rounded bg-white/10 text-white/50 border border-white/20 animate-pulse">
+                            {p.name}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="flex gap-4 w-full max-w-sm">
@@ -452,7 +459,14 @@ export default function RoomPage() {
                         <div className={`text-2xl font-black uppercase ${room.missionVotes[myId || ""] === 'success' ? 'text-blue-500' : 'text-accent'} mb-4`}>
                            {room.missionVotes[myId || ""] === 'success' ? 'SUCCESS (成功)' : 'FAIL (失敗)'}
                         </div>
-                        <div className="text-xs text-primary font-bold animate-pulse">他のメンバーの決断を待っています...</div>
+                        <div className="text-xs text-primary font-bold mt-4 mb-2">決断待ちのメンバー:</div>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {room.proposedTeam?.filter(pid => !room.missionVotes?.[pid]).map(pid => (
+                            <span key={pid} className="text-[10px] px-2 py-1 rounded bg-white/10 text-white/50 border border-white/20 animate-pulse">
+                              {room.players.find(p => p.id === pid)?.name}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-4 w-full max-w-sm">
@@ -475,8 +489,16 @@ export default function RoomPage() {
                   ) : (
                     <div className="py-12 flex flex-col items-center opacity-40">
                       <Shield className="w-12 h-12 mb-4 animate-pulse" />
-                      <p className="text-sm font-bold">遠征の無事を祈っています...</p>
-                      <p className="text-xs mt-1 italic leading-relaxed max-w-[200px]">選ばれたメンバーの「成功/失敗」の決断を待っています。</p>
+                      <p className="text-sm font-bold mb-4">遠征の無事を祈っています...</p>
+                      
+                      <div className="text-xs font-bold mb-2">決断待ちのメンバー:</div>
+                      <div className="flex flex-wrap gap-2 justify-center max-w-[200px]">
+                        {room.proposedTeam?.filter(pid => !room.missionVotes?.[pid]).map(pid => (
+                          <span key={pid} className="text-[10px] px-2 py-1 rounded bg-white/10 text-white/80 border border-white/20 animate-pulse">
+                            {room.players.find(p => p.id === pid)?.name}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

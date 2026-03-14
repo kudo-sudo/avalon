@@ -215,7 +215,7 @@ export const startGame = async (roomId: string) => {
     players: updatedPlayers,
     status: 'playing',
     phase: 'proposing',
-    currentLeaderIndex: 0,
+    currentLeaderIndex: Math.floor(Math.random() * updatedPlayers.length),
     currentRound: 1,
     teamSize: getTeamSize(updatedPlayers.length, 1),
     missionResults: [],
