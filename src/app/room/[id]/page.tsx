@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Shield, Sword, Users, Crown, ShieldAlert, ArrowLeft, Play, BookOpen, X, Check, XCircle, Settings } from "lucide-react";
-import { subscribeRoom, Room, Player, getPlayerId, startGame, getSecretInfo, proposeTeam, voteOnTeam, submitMissionVote, assassinateMerlin, ROLES, proceedFromVoting, proceedFromMission, updateSelectedRoles, getTeamSize } from "@/lib/gameLogic";
+import { Shield, Sword, Users, Crown, ShieldAlert, ArrowLeft, Play, BookOpen, X, Check, XCircle, Settings, RotateCcw } from "lucide-react";
+import { subscribeRoom, Room, Player, getPlayerId, startGame, getSecretInfo, proposeTeam, voteOnTeam, submitMissionVote, assassinateMerlin, ROLES, proceedFromVoting, proceedFromMission, updateSelectedRoles, getTeamSize, playAgain } from "@/lib/gameLogic";
 import { RulesModal } from "@/components/RulesModal";
 
 export default function RoomPage() {
@@ -81,12 +81,29 @@ export default function RoomPage() {
           </div>
         </div>
 
-        <button 
-          onClick={() => router.push("/")}
-          className="avalon-btn px-12"
-        >
-          Back to Menu
-        </button>
+        <div className="flex flex-col gap-4 w-full max-w-xs">
+          {room.players.find(p => p.id === myId)?.isHost ? (
+            <button 
+              onClick={() => playAgain(room.id)}
+              className="avalon-btn w-full flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(212,175,55,0.3)] animate-pulse"
+            >
+              <RotateCcw className="w-5 h-5" /> もう一度遊ぶ
+            </button>
+          ) : (
+            <div className="p-3 bg-white/5 border border-white/10 text-center rounded-lg">
+              <p className="text-xs text-foreground/60 flex items-center justify-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                ホストがゲームを再開するのを待っています...
+              </p>
+            </div>
+          )}
+          <button 
+            onClick={() => router.push("/")}
+            className="w-full text-foreground/40 hover:text-primary/60 transition-colors text-xs uppercase font-bold tracking-widest mt-4"
+          >
+            タイトルに戻る
+          </button>
+        </div>
       </div>
     );
   }

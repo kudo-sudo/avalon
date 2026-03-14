@@ -32,8 +32,8 @@ export interface Room {
   votes?: Record<string, 'approve' | 'reject'>; // UID -> 投票内容
   missionVotes?: Record<string, 'success' | 'fail'>; // UID -> 成功/失敗
   phase: 'proposing' | 'voting' | 'voting_result' | 'mission' | 'mission_result';
-  winner?: 'Good' | 'Evil';
-  assassinTarget?: string; //  assassinが選んだマーリンのPlayerID
+  winner?: 'Good' | 'Evil' | null;
+  assassinTarget?: string | null; //  assassinが選んだマーリンのPlayerID
   selectedRoles?: string[]; // カスタム役職の設定
 }
 
@@ -221,6 +221,39 @@ export const startGame = async (roomId: string) => {
     missionResults: [],
     failedVotes: 0,
     selectedRoles: room.selectedRoles || [ROLES.MERLIN, ROLES.ASSASSIN]
+  });
+};
+
+// 再プレイ（ロビーに戻る）
+export const playAgain = async (roomId: string) => {
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return;
+
+  const room = roomSnap.data() as Room;
+  
+  // プレイヤーの役職をクリア
+  const clearedPlayers = room.players.map(p => ({
+    id: p.id,
+    name: p.name,
+    isHost: p.isHost
+    // role は意図的に除外
+  }));
+
+  await updateDoc(roomRef, {
+    status: 'lobby',
+    players: clearedPlayers,
+    missionResults: [],
+    failedVotes: 0,
+    currentLeaderIndex: 0,
+    currentRound: 1,
+    teamSize: 0,
+    phase: 'proposing',
+    proposedTeam: [], // deleteField() がベストだか簡易的に
+    votes: {},
+    missionVotes: {},
+    winner: null,
+    assassinTarget: null
   });
 };
 
