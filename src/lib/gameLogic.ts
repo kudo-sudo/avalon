@@ -34,6 +34,7 @@ export interface Room {
   phase: 'proposing' | 'voting' | 'voting_result' | 'mission' | 'mission_result';
   winner?: 'Good' | 'Evil';
   assassinTarget?: string; //  assassinが選んだマーリンのPlayerID
+  selectedRoles?: string[]; // カスタム役職の設定
 }
 
 // 匿名ログインしてUIDを取得
@@ -77,7 +78,8 @@ export const createRoom = async (playerName: string) => {
     currentLeaderIndex: 0,
     currentRound: 1,
     teamSize: 0,
-    phase: 'proposing'
+    phase: 'proposing',
+    selectedRoles: [ROLES.MERLIN, ROLES.ASSASSIN] // デフォルト
   };
 
   console.log("createRoom: Saving to Firestore, roomId:", roomId);
@@ -140,15 +142,48 @@ export const ROLES = {
   MINION: 'モードレッドの邪悪な手先 (邪悪)'
 };
 
-// 人数に応じた役職配分
-const getRoleSetup = (count: number) => {
-  if (count === 5) return [ROLES.MERLIN, ROLES.PERCIVAL, ROLES.SERVANT, ROLES.ASSASSIN, ROLES.MORGANA];
-  if (count === 6) return [ROLES.MERLIN, ROLES.PERCIVAL, ROLES.SERVANT, ROLES.SERVANT, ROLES.ASSASSIN, ROLES.MORGANA];
-  if (count === 7) return [ROLES.MERLIN, ROLES.PERCIVAL, ROLES.SERVANT, ROLES.SERVANT, ROLES.ASSASSIN, ROLES.MORGANA, ROLES.OBERON];
-  if (count === 8) return [ROLES.MERLIN, ROLES.PERCIVAL, ROLES.SERVANT, ROLES.SERVANT, ROLES.SERVANT, ROLES.ASSASSIN, ROLES.MORGANA, ROLES.MORDRED];
-  if (count === 9) return [ROLES.MERLIN, ROLES.PERCIVAL, ROLES.SERVANT, ROLES.SERVANT, ROLES.SERVANT, ROLES.SERVANT, ROLES.ASSASSIN, ROLES.MORGANA, ROLES.MORDRED];
-  if (count === 10) return [ROLES.MERLIN, ROLES.PERCIVAL, ROLES.SERVANT, ROLES.SERVANT, ROLES.SERVANT, ROLES.SERVANT, ROLES.ASSASSIN, ROLES.MORGANA, ROLES.MORDRED, ROLES.OBERON];
-  return [];
+// 人数と選択された役職に応じた役職配分
+const getCustomRoleSetup = (count: number, selectedRoles: string[] = []) => {
+  const setup: string[] = [];
+  
+  // 陣営ごとの必要人数
+  let requiredGood = 0;
+  let requiredEvil = 0;
+  if (count === 5) { requiredGood = 3; requiredEvil = 2; }
+  else if (count === 6) { requiredGood = 4; requiredEvil = 2; }
+  else if (count === 7) { requiredGood = 4; requiredEvil = 3; }
+  else if (count === 8) { requiredGood = 5; requiredEvil = 3; }
+  else if (count === 9) { requiredGood = 6; requiredEvil = 3; }
+  else if (count >= 10) { requiredGood = 6; requiredEvil = 4; }
+
+  // 選択された役職を割り当て
+  const goodRoles = [ROLES.MERLIN, ROLES.PERCIVAL];
+  const evilRoles = [ROLES.ASSASSIN, ROLES.MORGANA, ROLES.MORDRED, ROLES.OBERON];
+  
+  let currentGood = 0;
+  let currentEvil = 0;
+
+  for (const role of selectedRoles) {
+    if (goodRoles.includes(role) && currentGood < requiredGood) {
+      setup.push(role);
+      currentGood++;
+    } else if (evilRoles.includes(role) && currentEvil < requiredEvil) {
+      setup.push(role);
+      currentEvil++;
+    }
+  }
+
+  // 足りない分は一般兵で埋める
+  while (currentGood < requiredGood) {
+    setup.push(ROLES.SERVANT);
+    currentGood++;
+  }
+  while (currentEvil < requiredEvil) {
+    setup.push(ROLES.MINION);
+    currentEvil++;
+  }
+
+  return setup;
 };
 
 // シャッフル
@@ -168,7 +203,7 @@ export const startGame = async (roomId: string) => {
   if (!roomSnap.exists()) return;
 
   const room = roomSnap.data() as Room;
-  const setup = getRoleSetup(room.players.length);
+  const setup = getCustomRoleSetup(room.players.length, room.selectedRoles || [ROLES.MERLIN, ROLES.ASSASSIN]);
   const shuffledRoles = shuffle(setup);
 
   const updatedPlayers = room.players.map((p, i) => ({
@@ -184,7 +219,16 @@ export const startGame = async (roomId: string) => {
     currentRound: 1,
     teamSize: getTeamSize(updatedPlayers.length, 1),
     missionResults: [],
-    failedVotes: 0
+    failedVotes: 0,
+    selectedRoles: room.selectedRoles || [ROLES.MERLIN, ROLES.ASSASSIN]
+  });
+};
+
+// オプション役職の更新
+export const updateSelectedRoles = async (roomId: string, roles: string[]) => {
+  const roomRef = doc(db, "rooms", roomId);
+  await updateDoc(roomRef, {
+    selectedRoles: roles
   });
 };
 
@@ -346,7 +390,7 @@ export const assassinateMerlin = async (roomId: string, targetId: string) => {
 };
 
 // 遠征メンバー数 (人数, ラウンド)
-const getTeamSize = (players: number, round: number) => {
+export const getTeamSize = (players: number, round: number) => {
   const table: Record<number, number[]> = {
     5: [2, 3, 2, 3, 3],
     6: [2, 3, 4, 3, 4],
@@ -355,7 +399,7 @@ const getTeamSize = (players: number, round: number) => {
     9: [3, 4, 4, 5, 5],
     10: [3, 4, 4, 5, 5]
   };
-  return table[players][round - 1];
+  return table[players]?.[round - 1] || 0;
 };
 
 // 秘密情報の取得

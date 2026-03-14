@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Shield, Sword, Users, Crown, ShieldAlert, ArrowLeft, Play, BookOpen, X, Check, XCircle } from "lucide-react";
-import { subscribeRoom, Room, Player, getPlayerId, startGame, getSecretInfo, proposeTeam, voteOnTeam, submitMissionVote, assassinateMerlin, ROLES, proceedFromVoting, proceedFromMission } from "@/lib/gameLogic";
+import { Shield, Sword, Users, Crown, ShieldAlert, ArrowLeft, Play, BookOpen, X, Check, XCircle, Settings } from "lucide-react";
+import { subscribeRoom, Room, Player, getPlayerId, startGame, getSecretInfo, proposeTeam, voteOnTeam, submitMissionVote, assassinateMerlin, ROLES, proceedFromVoting, proceedFromMission, updateSelectedRoles, getTeamSize } from "@/lib/gameLogic";
+import { RulesModal } from "@/components/RulesModal";
 
 export default function RoomPage() {
   const { id } = useParams();
@@ -12,6 +13,8 @@ export default function RoomPage() {
   const [myId, setMyId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [localSelectedTeam, setLocalSelectedTeam] = useState<string[]>([]);
+  const [showRolesSettings, setShowRolesSettings] = useState(false);
+  const [showRules, setShowRules] = useState(false);
 
   useEffect(() => {
     getPlayerId().then(setMyId);
@@ -168,10 +171,12 @@ export default function RoomPage() {
           <div className="grid grid-cols-5 gap-2 sm:gap-4">
             {[1, 2, 3, 4, 5].map((round) => {
               const result = room.missionResults[round - 1];
+              const requiredPlayers = getTeamSize(room.players.length, round);
               return (
                 <div key={round} className={`avalon-card p-3 flex flex-col items-center justify-center gap-2 border-2 ${
                   round === room.currentRound ? 'border-primary shadow-[0_0_10px_var(--primary)]' : 'border-white/5'
                 }`}>
+                  <span className="text-[10px] uppercase font-bold text-foreground/40">{requiredPlayers}人</span>
                   <span className="text-[10px] font-bold opacity-40 uppercase tracking-widest text-center leading-none">MISSION<br/>{round}</span>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                     result === 'success' ? 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]' :
@@ -226,6 +231,21 @@ export default function RoomPage() {
                     )}
                   </div>
                 ))}
+              </div>
+
+              {/* Active Roles Info */}
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <p className="text-[10px] uppercase font-bold text-foreground/40 mb-2">Active Special Roles</p>
+                <div className="flex flex-wrap gap-1">
+                  {room.selectedRoles?.filter(r => r !== ROLES.SERVANT && r !== ROLES.MINION).map(role => {
+                    const isEvil = [ROLES.ASSASSIN, ROLES.MORGANA, ROLES.MORDRED, ROLES.OBERON].includes(role);
+                    return (
+                      <span key={role} className={`text-[9px] px-1.5 py-0.5 rounded border font-bold uppercase ${isEvil ? 'bg-red-900/20 text-accent border-accent/30' : 'bg-blue-900/20 text-blue-400 border-blue-500/30'}`}>
+                        {role.replace(/ \(.+\)/, '')}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Role Distribution Info */}
@@ -506,12 +526,20 @@ export default function RoomPage() {
     <div className="flex min-h-screen flex-col bg-background p-4 sm:p-8">
       {/* Header */}
       <header className="flex items-center justify-between mb-8">
-        <button 
-          onClick={() => router.push("/")}
-          className="flex items-center gap-2 text-foreground/60 hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" /> 戻る
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => router.push("/")}
+            className="flex items-center gap-2 text-foreground/60 hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" /> 戻る
+          </button>
+          <button 
+            onClick={() => setShowRules(true)}
+            className="flex items-center gap-2 text-foreground/60 hover:text-primary transition-colors text-xs uppercase font-bold tracking-widest bg-white/5 px-3 py-1.5 rounded-full border border-white/10"
+          >
+            <BookOpen className="w-4 h-4" /> Rules
+          </button>
+        </div>
         <div className="flex flex-col items-end">
           <span className="text-xs uppercase tracking-[0.2em] text-foreground/40 font-bold">Room ID</span>
           <span className="text-3xl font-black text-primary tracking-tighter">{room.id}</span>
@@ -575,6 +603,57 @@ export default function RoomPage() {
                 </div>
               </div>
             )}
+            
+            {/* 役職設定 (ホストのみ変更可能) */}
+            <div className="mt-6">
+              <button 
+                onClick={() => setShowRolesSettings(!showRolesSettings)}
+                className="flex items-center justify-between w-full text-xs uppercase font-bold text-foreground/40 hover:text-primary transition-colors py-2 border-t border-b border-white/10"
+              >
+                <span className="flex items-center gap-2"><Settings className="w-4 h-4" /> 役職設定</span>
+                {showRolesSettings ? <X className="w-4 h-4" /> : <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded">Check</span>}
+              </button>
+              
+              {showRolesSettings && (
+                <div className="pt-4 space-y-3">
+                  {[
+                    { role: ROLES.MERLIN, label: "Merlin", type: "good" },
+                    { role: ROLES.ASSASSIN, label: "Assassin", type: "evil" },
+                    { role: ROLES.PERCIVAL, label: "Percival", type: "good" },
+                    { role: ROLES.MORGANA, label: "Morgana", type: "evil" },
+                    { role: ROLES.MORDRED, label: "Mordred", type: "evil" },
+                    { role: ROLES.OBERON, label: "Oberon", type: "evil" }
+                  ].map(({ role, label, type }) => {
+                    const isSelected = room.selectedRoles?.includes(role);
+                    return (
+                      <div key={role} className="flex items-center justify-between">
+                        <span className={`text-sm font-bold ${type === 'good' ? 'text-blue-400' : 'text-accent'}`}>{label}</span>
+                        <button
+                          disabled={!isHost}
+                          onClick={() => {
+                            const newRoles = isSelected 
+                              ? (room.selectedRoles || []).filter(r => r !== role)
+                              : [...(room.selectedRoles || []), role];
+                            updateSelectedRoles(room.id, newRoles);
+                          }}
+                          className={`w-12 h-6 rounded-full transition-colors relative flex items-center shadow-inner ${
+                            isSelected ? (type === 'good' ? 'bg-blue-600' : 'bg-accent') : 'bg-white/10'
+                          } ${!isHost && 'opacity-50 cursor-not-allowed'}`}
+                        >
+                          <div className={`w-4 h-4 rounded-full bg-white absolute transform transition-transform shadow-md ${
+                            isSelected ? 'translate-x-[26px]' : 'translate-x-[4px]'
+                          }`} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <p className="text-[10px] text-foreground/40 mt-2 leading-relaxed">
+                    ※ 人数に満たない枠は自動的に「アーサーの忠実なる家来(正義)」「モードレッドの邪悪な手先(邪悪)」で埋められます。人数を超える役職を選択した場合ランダムに選出されます。
+                  </p>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
@@ -625,6 +704,9 @@ export default function RoomPage() {
 
       {/* Background Graphic */}
       <div className="fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent pointer-events-none opacity-50"></div>
+
+      {/* Rules Modal */}
+      <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
     </div>
   );
 }
